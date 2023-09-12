@@ -17,7 +17,6 @@
 /datum/reagent/medicine/leporazine
 	name = "Leporazine"
 	description = "Leporazine will effectively regulate a patient's body temperature, ensuring it never leaves safe levels."
-	chemical_flags = REAGENT_ALL_PROCESS
 	pH = 8.4
 	color = "#82b8aa"
 	value = REAGENT_VALUE_COMMON
@@ -406,6 +405,8 @@
 	metabolization_rate = 0.5 * REAGENTS_METABOLISM
 	chemical_flags = REAGENT_ALL_PROCESS
 	overdose_threshold = 60
+	boiling_point = T0C+100
+	gas = GAS_H2O
 	taste_description = "sweetness and salt"
 	var/extra_regen = 0.25 // in addition to acting as temporary blood, also add this much to their actual blood per tick
 	var/last_added = 0
@@ -692,8 +693,8 @@
 	description = "Rapidly restores oxygen deprivation as well as preventing more of it to an extent. Causes jittering."
 	reagent_state = LIQUID
 	color = "#00FFFF"
+	boiling_point = 300
 	metabolization_rate = 0.25 * REAGENTS_METABOLISM
-	chemical_flags = REAGENT_ALL_PROCESS
 	pH = 2
 
 /datum/reagent/medicine/salbutamol/on_mob_life(mob/living/carbon/M)
@@ -710,7 +711,6 @@
 	reagent_state = LIQUID
 	color = "#FF6464"
 	metabolization_rate = 0.25 * REAGENTS_METABOLISM
-	chemical_flags = REAGENT_ALL_PROCESS
 	pH = 11
 
 /datum/reagent/medicine/perfluorodecalin/on_mob_life(mob/living/carbon/human/M)
@@ -920,7 +920,6 @@
 	reagent_state = LIQUID
 	color = "#000000"
 	metabolization_rate = 0.25 * REAGENTS_METABOLISM
-	chemical_flags = REAGENT_ALL_PROCESS
 	overdose_threshold = 35
 	pH = 12
 	value = REAGENT_VALUE_UNCOMMON
@@ -951,7 +950,6 @@
 	reagent_state = LIQUID
 	color = "#D2FFFA"
 	metabolization_rate = 0.25 * REAGENTS_METABOLISM
-	chemical_flags = REAGENT_ALL_PROCESS
 	overdose_threshold = 30
 	pH = 10.2
 
@@ -1002,11 +1000,11 @@
 	if(M.stat == DEAD)
 		if(M.suiciding || M.hellbound) //they are never coming back
 			M.visible_message("<span class='warning'>[M]'s body does not react...</span>")
-			return
+			return ..()
 		if(M.getBruteLoss() >= 100 || M.getFireLoss() >= 100 || HAS_TRAIT(M, TRAIT_HUSK)) //body is too damaged to be revived
 			M.visible_message("<span class='warning'>[M]'s body convulses a bit, and then falls still once more.</span>")
 			M.do_jitter_animation(10)
-			return
+			return ..()
 		else
 			M.visible_message("<span class='warning'>[M]'s body starts convulsing!</span>")
 			M.notify_ghost_cloning(source = M)
@@ -1018,27 +1016,31 @@
 				if(iscarbon(M))
 					var/mob/living/carbon/C = M
 					if(!(C.dna && C.dna.species && (NOBLOOD in C.dna.species.species_traits)))
-						C.blood_volume = max(C.blood_volume, BLOOD_VOLUME_NORMAL*C.blood_ratio) //so you don't instantly re-die from a lack of blood
-					for(var/organ in C.internal_organs)
-						var/obj/item/organ/O = organ
-						if(O.damage > O.maxHealth/2)
-							O.setOrganDamage(O.maxHealth/2) //so you don't instantly die from organ damage when being revived
+						C.blood_volume = max(C.blood_volume, BLOOD_VOLUME_BAD*C.blood_ratio) //so you don't instantly re-die from a lack of blood. You'll still need help if you had none though.
+					var/obj/item/organ/heart/H = C.getorganslot(ORGAN_SLOT_HEART)
+					if(H && H.organ_flags & ORGAN_FAILING)
+						H.applyOrganDamage(-15)
+					for(var/obj/item/organ/O as anything in C.internal_organs)
+						if(O.organ_flags & ORGAN_FAILING)
+							O.applyOrganDamage(-5)
 
 				M.adjustOxyLoss(-20, 0)
 				M.adjustToxLoss(-20, 0)
 				M.updatehealth()
+				if(iscarbon(M))
+					var/mob/living/carbon/C = M
+					if(!C.can_revive(ignore_timelimit = TRUE, maximum_brute_dam = 100, maximum_fire_dam = 100, ignore_heart = TRUE))
+						return
 				var/tplus = world.time - M.timeofdeath
 				if(M.revive())
 					M.grab_ghost()
 					M.emote("gasp")
 					log_combat(M, M, "revived", src)
 					var/list/policies = CONFIG_GET(keyed_list/policy)
-					var/timelimit = CONFIG_GET(number/defib_cmd_time_limit) * 10 //the config is in seconds, not deciseconds
-					var/late = timelimit && (tplus > timelimit)
-					var/policy = late? policies[POLICYCONFIG_ON_DEFIB_LATE] : policies[POLICYCONFIG_ON_DEFIB_INTACT]
+					var/policy = policies[POLICYCONFIG_ON_DEFIB_LATE]	//Always causes memory loss due to the nature of strange reagent.
 					if(policy)
 						to_chat(M, policy)
-					M.log_message("revived using strange reagent, [tplus] deciseconds from time of death, considered [late? "late" : "memory-intact"] revival under configured policy limits.", LOG_GAME)
+					M.log_message("revived using strange reagent, [tplus] deciseconds from time of death, considered late revival due to usage of strange reagent.", LOG_GAME)
 	..()
 
 
@@ -1052,6 +1054,7 @@
 	name = "Mannitol"
 	description = "Efficiently restores brain damage."
 	color = "#DCDCFF"
+	taste_description = "sweetness"
 	pH = 10.4
 	chemical_flags = REAGENT_ALL_PROCESS
 
@@ -1081,6 +1084,13 @@
 	else
 		B.gain_trauma_type(BRAIN_TRAUMA_SPECIAL)
 
+/datum/reagent/medicine/neurine/reaction_obj(obj/O, reac_volume)
+	if(istype(O, /obj/item/dullahan_head))
+		var/obj/item/dullahan_head/head = O
+		if(head.B)
+			head.B.applyOrganDamage(-20)
+		if(head.owner)
+			head.owner.cure_trauma_type(resilience = TRAUMA_RESILIENCE_SURGERY)
 
 /datum/reagent/medicine/neurine/on_mob_life(mob/living/carbon/C)
 	if(holder.has_reagent(/datum/reagent/consumable/ethanol/neurotoxin))
@@ -1203,7 +1213,6 @@
 	description = "Restores oxygen loss. Overdose causes it instead."
 	reagent_state = LIQUID
 	color = "#13d2f0"
-	chemical_flags = REAGENT_ALL_PROCESS
 	overdose_threshold = 30
 	pH = 9.7
 
@@ -1267,7 +1276,6 @@
 	reagent_state = LIQUID
 	pH = 8.5
 	color = "#5dc1f0"
-	chemical_flags = REAGENT_ALL_PROCESS
 
 /datum/reagent/medicine/inaprovaline/on_mob_life(mob/living/carbon/M)
 	if(M.losebreath >= 5)
@@ -1361,7 +1369,7 @@
 
 /datum/reagent/medicine/neo_jelly
 	name = "Neo Jelly"
-	description = "Gradually regenerates all types of damage, without harming slime anatomy.Can OD"
+	description = "Gradually regenerates all types of damage, without harming slime anatomy. Can overdose."
 	reagent_state = LIQUID
 	metabolization_rate = 1 * REAGENTS_METABOLISM
 	color = "#91D865"
@@ -1798,4 +1806,51 @@
 		M.adjustToxLoss(0.8*REAGENTS_EFFECT_MULTIPLIER, toxins_type = TOX_SYSCORRUPT) //inverts its positive effect on overdose, for organics it's just more toxic
 	else
 		M.adjustToxLoss(0.5*REAGENTS_EFFECT_MULTIPLIER)
+	. = 1
+
+/datum/reagent/medicine/limb_regrowth
+	name = "Carcinisoprojection Jelly"
+	description = "Also known as \"limb regrowth jelly\", this crabby looking xenobiological jelly will rapidly regrow any missing limbs someone has at the cost of some of their blood. Do not overdose."
+	taste_description = "salty slime"
+	color = "#EF5428" //like cooked crab!
+	reagent_state = LIQUID
+	overdose_threshold = 65 //it takes more than one bluespace syringe to overdose someone with this given how nasty the OD is.
+	value = REAGENT_VALUE_RARE
+
+/datum/reagent/medicine/limb_regrowth/reaction_mob(mob/living/carbon/C, method=TOUCH, reac_volume)
+	. = ..()
+	if(!.)
+		return
+	if(method == TOUCH) //as funny as it would be to have this hurled at someone, nah.
+		return
+	var/vol = reac_volume + C.reagents.get_reagent_amount(/datum/reagent/medicine/limb_regrowth)
+	if(vol < 5) //need at least 5 units.
+		return
+	var/list/limbs_to_heal = C.get_missing_limbs(exclude_head = TRUE)
+	if(limbs_to_heal.len < 1) //nothing happens if they already got all limbs.
+		return
+	if(HAS_TRAIT(C, TRAIT_ROBOTIC_ORGANISM)) //sorry synths, consider a visit to the roboticist. dunno how to justify regrowing robolimbs.
+		return
+	else if(ishuman(C) && !(HAS_BONE in C.dna?.species?.species_traits)) //boneless have little trouble with the limb chemical.
+		C.visible_message("<span class='notice'>[C] suddenly regrows \his limbs!</span>",
+		"<span class='notice'>You suddenly regrow your limbs, sensation and all!</span>")
+	else //boneful beings get to scream.
+		C.visible_message("<span class='warning'>[C]'s body lets off a grotesque squelching, bone crunching sound as \his limbs grow back rapidly!</span>",
+			"<span class='danger'>Your body emits a grotesque squelching, bone crunching sound as your limbs grow back rapidly! \
+				With the sensation of your regained limbs, also comes pain!</span>",
+			"<span class='italics'>You hear a grotsque squelching noise and the sound of crunching bones.</span>")
+		playsound(C, 'sound/magic/demon_consume.ogg', 50, 1)
+		SEND_SIGNAL(C, COMSIG_ADD_MOOD_EVENT, "painful_limb_regrowth", /datum/mood_event/painful_limb_regrowth)
+		C.emote("scream")
+	C.regenerate_limbs(excluded_limbs = list(BODY_ZONE_HEAD)) //would be a little funky for dullahans if they suddenly sprouted a head.
+	C.blood_volume = max(C.blood_volume - 30*limbs_to_heal.len,0)
+	//lose blood for each limb that was regained.
+	//10 units less expensive than slime limb regrowth, but doesn't check for low blood like the ability, so it could be dangerous.
+	to_chat(C,"<span class='warning'>You feel like this ordeal of your limbs regrowing has made you a little paler... as well as made you feel a little thirsty.</span>")
+	//hint at the blood loss. (paler is a common symptom depicted in-game of low blood, but dehydration is another symptom of low blood.)
+
+
+/datum/reagent/medicine/limb_regrowth/overdose_start(mob/living/M)
+	M.ForceContractDisease(new /datum/disease/crabcancer, FALSE, TRUE) //it is now, time for crab.
+	..()
 	. = 1

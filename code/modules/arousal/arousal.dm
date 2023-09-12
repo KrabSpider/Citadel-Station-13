@@ -74,7 +74,7 @@
 	if(spill && R.total_volume >= 5)
 		R.reaction(turfing ? target : target.loc, TOUCH, 1, 0)
 	if(!turfing)
-		R.trans_to(target, R.total_volume * (spill ? G.fluid_transfer_factor : 1))
+		R.trans_to(target, R.total_volume * (spill ? G.fluid_transfer_factor : 1), log = TRUE)
 	G.last_orgasmed = world.time
 	R.clear_reagents()
 
@@ -117,6 +117,8 @@
 		if(!do_after(src, mb_time, target = src) || !in_range(src, container) || !G.climaxable(src, TRUE))
 			return
 	to_chat(src,"<span class='userlove'>You used your [G.name] to fill [container].</span>")
+	message_admins("[ADMIN_LOOKUPFLW(src)] used their [G.name] to fill [container].")
+	log_consent("[key_name(src)] used their [G.name] to fill [container].")
 	do_climax(fluid_source, container, G, FALSE)
 
 /mob/living/carbon/human/proc/pick_climax_genitals(silent = FALSE)
@@ -144,7 +146,7 @@
 			partners -= L
 		if(iscarbon(L))
 			var/mob/living/carbon/C = L
-			if(!C.exposed_genitals.len && !C.is_groin_exposed() && !C.is_chest_exposed()) //Nothing through_clothing, no proper partner.
+			if(!C.exposed_genitals.len && !C.is_groin_exposed() && !C.is_chest_exposed() && C.is_mouth_covered()) //Nothing through_clothing, no proper partner.
 				partners -= C
 	//NOW the list should only contain correct partners
 	if(!partners.len)
@@ -158,8 +160,8 @@
 		if(consenting == "Yes")
 			return target
 		else
-			message_admins("[src] tried to climax with [target], but [target] did not consent.")
-			log_consent("[src] tried to climax with [target], but [target] did not consent.")
+			message_admins("[ADMIN_LOOKUPFLW(src)] tried to climax with [target], but [target] did not consent.")
+			log_consent("[key_name(src)] tried to climax with [target], but [target] did not consent.")
 
 /mob/living/carbon/human/proc/pick_climax_container(silent = FALSE)
 	var/list/containers_list = list()

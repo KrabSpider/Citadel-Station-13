@@ -4,6 +4,9 @@
 #define LOADOUT_SUBCATEGORY_NONE		"Miscellaneous"
 #define LOADOUT_SUBCATEGORIES_NONE		list("Miscellaneous")
 
+//accessory
+#define LOADOUT_CATEGORY_ACCESSORY "Accessory"
+
 //backpack
 #define LOADOUT_CATEGORY_BACKPACK 				"In backpack"
 #define LOADOUT_SUBCATEGORY_BACKPACK_GENERAL 	"General" //basically anything that there's not enough of to have its own subcategory
@@ -91,3 +94,8 @@
 #define LOADOUT_TAB				4
 #define CONTENT_PREFERENCES_TAB	5
 #define KEYBINDINGS_TAB			6
+
+//quirks
+#define QUIRK_POSITIVE	"Positive"
+#define QUIRK_NEGATIVE	"Negative"
+#define QUIRK_NEUTRAL	"Neutral"

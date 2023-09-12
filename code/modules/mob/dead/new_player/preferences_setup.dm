@@ -24,6 +24,9 @@
 		var/rando_race = pick(GLOB.roundstart_races)
 		pref_species = new rando_race()
 	features = random_features(pref_species?.id, gender)
+	bark_id = pick(GLOB.bark_random_list)
+	bark_pitch = BARK_PITCH_RAND(gender)
+	bark_variance = BARK_VARIANCE_RAND
 	age = rand(AGE_MIN,AGE_MAX)
 
 /datum/preferences/proc/update_preview_icon(current_tab)
@@ -48,7 +51,8 @@
 
 	if(current_tab == LOADOUT_TAB)
 		//give it its loadout if not on the appearance tab
-		SSjob.equip_loadout(parent.mob, mannequin, FALSE, bypass_prereqs = TRUE, can_drop = FALSE)
+		SSjob.equip_loadout(parent.mob, mannequin, bypass_prereqs = TRUE, can_drop = FALSE)
+		SSjob.post_equip_loadout(parent.mob, mannequin, bypass_prereqs = TRUE, can_drop = FALSE)
 	else
 		if(previewJob && equip_job)
 			mannequin.job = previewJob.title

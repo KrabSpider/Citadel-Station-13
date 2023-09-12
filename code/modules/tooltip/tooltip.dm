@@ -119,42 +119,36 @@ Notes:
 //Includes sanity checks.
 /proc/closeToolTip(mob/user)
 	if(istype(user))
-		if(user.client)
-			var/client/client = user.client
-			if(client.tooltips)
-				client.tooltips.hide()
-			deltimer(client.tip_timer) //delete any in-progress timer if the mouse is moved off the item before it finishes
-			client.tip_timer = null
+		if(user.client && user.client.tooltips)
+			user.client.tooltips.hide()
+			deltimer(user.client.tip_timer) //delete any in-progress timer if the mouse is moved off the item before it finishes
+			user.client.tip_timer = null
 
 /**
- * # `get_tooltip_data()`
- *
  * If set, will return a list for the tooltip (that will also be put together in a `Join()`)
  * However, if returning `null`, the tooltip will not be shown as #14942 changed it.
  *
  * Though no tooltips will be created for atoms that have `tooltips = FALSE`
 */
 /atom/movable/proc/get_tooltip_data()
-	return
+	return // i did not ask you to create a list, this shit is meant to be overriden
 
 /atom/movable/MouseEntered(location, control, params)
 	. = ..()
 	if(tooltips)
-		if(!QDELETED(src) && usr?.client.prefs.enable_tips)
+		if(!QDELETED(usr) && !QDELETED(src) && usr?.client?.prefs.enable_tips)
 			var/list/tooltip_data = get_tooltip_data()
 			if(length(tooltip_data))
 				var/examine_data = tooltip_data.Join("<br />")
 				var/timedelay = max(usr.client.prefs.tip_delay * 0.01, 0.01) // I heard multiplying is faster, also runtimes from very low/negative numbers
-				usr.client.tip_timer = addtimer(CALLBACK(GLOBAL_PROC, .proc/openToolTip, usr, src, params, name, examine_data), timedelay, TIMER_STOPPABLE)
+				usr.client.tip_timer = addtimer(CALLBACK(GLOBAL_PROC, .proc/openToolTip, usr, src, params, name, examine_data), timedelay, TIMER_STOPPABLE)//timer takes delay in deciseconds, but the pref is in milliseconds. multiplying by 0.01 converts it.
 
 /atom/movable/MouseExited(location, control, params)
 	. = ..()
 	closeToolTip(usr)
 
 /client/MouseDown(object, location, control, params)
-	closeToolTip(usr)
 	. = ..()
+	closeToolTip(usr)
 
-/client
-	/// Timers are now handled by clients, not by doing a mess on the item and multiple people overwriting a single timer on the object, have fun.
-	var/tip_timer = null
+// Break my stuff again and i'll kill you, kisses
